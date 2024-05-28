@@ -6,7 +6,7 @@ import os
 app = FastAPI()
 
 # Especificar las rutas absolutas a los archivos Parquet
-steam_games_path = 'C:/Users/aleja/OneDrive/Escritorio/Data Science/2. Labs/PI1 - MLOPS/Prueba Funciones/Datasets/steam_games_transf.parquet'
+steam_games_path = 'Dataset/steam_games_transf.parquet'
 
 # Verificar que los archivos existen
 if not os.path.exists(steam_games_path):
