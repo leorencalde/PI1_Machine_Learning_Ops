@@ -143,7 +143,7 @@ def best_developer_year(year: int):
 def developer_reviews_analysis(desarrollador: str):
 
     # Obtener los IDs de los juegos desarrollados por la empresa especificada
-    game_ids = steam_games[steam_games['developer'] == desarrolladora]['id']
+    game_ids = steam_games[steam_games['developer'] == desarrollador]['id']
 
     # Filtrar las reseñas que corresponden a esos IDs de juegos
     df = user_reviews[user_reviews['review_item_id'].isin(game_ids)]
@@ -161,7 +161,7 @@ def developer_reviews_analysis(desarrollador: str):
 
 # Sistema de recomendacion item-item: Se recomiendan 5 juegos similares a un juego dado por su ID utilizando la similitud del coseno
 @app.get("/recomendacion_juego/{producto_id}")
-def recomendacion_juego(producto_id: int, sample_size=10000):
+def recomendacion_juego(producto_id: int, sample_size=1000):
 
     try:
         # Convertir sample_size a entero
@@ -173,10 +173,7 @@ def recomendacion_juego(producto_id: int, sample_size=10000):
             raise HTTPException(status_code=404, detail="Juego no encontrado")
     
         # Crear una muestra más pequeña del conjunto de datos para evitar problemas de memoria
-        if sample_size < len(steam_games_recommend):
-            steam_games_sample = steam_games_recommend.sample(sample_size, random_state=1)
-        else:
-            steam_games_sample = steam_games_recommend
+        steam_games_sample = steam_games_recommend.sample(min(sample_size, len(steam_games_recommend)), random_state=1)
 
         # Agregar el juego dado a la muestra para asegurar que esté presente
         steam_games_sample = pd.concat([steam_games_sample, juego], ignore_index=True)
@@ -209,7 +206,6 @@ def recomendacion_juego(producto_id: int, sample_size=10000):
 
         # Devolver los juegos más similares
         juegos_recomendados = steam_games_sample.iloc[juego_indices]
-    
         return juegos_recomendados[['id', 'app_name', 'genres', 'developer', 'price']].to_dict(orient='records')
 
     except Exception as e:
@@ -218,4 +214,5 @@ def recomendacion_juego(producto_id: int, sample_size=10000):
 # Ejecutar la aplicación con Uvicorn
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.environ.get("PORT", 8000))  # Usa el puerto proporcionado por Render, o 8000 si no está definido
+    uvicorn.run(app, host="0.0.0.0", port=port)
