@@ -8,21 +8,13 @@ app = FastAPI()
 
 # Especificar las rutas absolutas a los archivos Parquet usando raw strings para evitar problemas con las barras invertidas
 steam_games_path = 'Dataset/steam_games_transf.parquet'
-user_items_path = 'Dataset/users_items_transf.parquet'
-user_reviews_path = 'Dataset/user_reviews_sentiment_analysis.parquet'
 
 # Verificar que los archivos existen
 if not os.path.exists(steam_games_path):
     raise FileNotFoundError(f"Archivo no encontrado: {steam_games_path}")
-if not os.path.exists(user_items_path):
-    raise FileNotFoundError(f"Archivo no encontrado: {user_items_path}")
-if not os.path.exists(user_reviews_path):
-    raise FileNotFoundError(f"Archivo no encontrado: {user_reviews_path}")
 
 # Cargar los datos desde los archivos Parquet
 steam_games = pd.read_parquet(steam_games_path)
-user_items = pd.read_parquet(user_items_path)
-user_reviews = pd.read_parquet(user_reviews_path)
 
 # Ruta raíz que devuelve un mensaje de bienvenida
 @app.get("/")
@@ -59,100 +51,7 @@ def developer(desarrollador: str):
     result['contenido_free'] = result['contenido_free'].astype(str) + '%'
     
     return result.to_dict(orient='records')
-
-# Endpoint 2: devuelve información sobre el gasto y actividad de un usuario en específico
-@app.get("/userdata/{user_id}")
-def userdata(user_id: str):
-
-    # Filtrar los ítems pertenecientes al usuario especificado
-    df = user_items[user_items['steam_id'] == user_id]
-    if df.empty:
-        return {"error": "Usuario no encontrado"}
     
-    # Calcular el total de dinero gastado por el usuario (aquí se usa el tiempo de juego como proxy)
-    dinero_gastado = df['item_playtime_forever'].sum()  # No hay precio en user_items, se usará 'item_playtime_forever'
-
-    # Contar la cantidad de ítems que tiene el usuario
-    cantidad_items = df['item_item_id'].count()
-    
-    # Calcular el porcentaje de recomendaciones positivas del usuario
-    recomendacion = user_reviews[user_reviews['user_id'] == user_id]['review_recommend'].mean() * 100
-    
-    return {
-        "Usuario": user_id,
-        "Dinero gastado": f"{dinero_gastado} USD",
-        "% de recomendación": f"{recomendacion:.2f}%",
-        "cantidad de items": cantidad_items
-    }
-
-# Endpoint 3: devuelve el usuario con más horas jugadas para un género dado y la acumulación de horas jugadas por año de lanzamiento
-@app.get("/user_for_genre/{genero}")
-def user_for_genre(genero: str):
-
-    # Obtener los IDs de los juegos que pertenecen al género especificado
-    game_ids = steam_games[steam_games['genres'].apply(lambda x: genero in x if isinstance(x, list) else False)]['id']
-
-    # Filtrar los ítems jugados que corresponden a esos IDs de juegos
-    df = user_items[user_items['item_item_id'].isin(game_ids)]
-    if df.empty:
-        return {"error": "Género no encontrado"}
-    
-    # Sumar las horas jugadas por cada usuario
-    user_hours = df.groupby('steam_id')['item_playtime_forever'].sum()
-    
-    # Encontrar el usuario con más horas jugadas
-    top_user = user_hours.idxmax()
-
-    # Obtener los datos del usuario con más horas jugadas, agrupando por ítem
-    top_user_data = df[df['steam_id'] == top_user].groupby('item_item_id')['item_playtime_forever'].sum().reset_index()
-    
-    result = {
-        "Usuario con más horas jugadas para Género": top_user,
-        "Horas jugadas": top_user_data.to_dict(orient='records')
-    }
-    return result
-
-# Endpoint 4: devuelve el top 3 de desarrolladores con juegos más recomendados por año especificado
-@app.get("/best_developer_year/{year}")
-def best_developer_year(year: int):
-
-    # Convertir la columna review_posted a tipo datetime
-    user_reviews['review_posted'] = pd.to_datetime(user_reviews['review_posted'], errors='coerce')
-
-    # Filtrar las reseñas que corresponden al año especificado
-    df = user_reviews[user_reviews['review_posted'].dt.year == year]
-    
-    if df.empty:
-        return {"error": "No hay datos para el año especificado"}
-    
-    # Contar las recomendaciones por cada ítem y obtener los top 3 más recomendados
-    developer_recommendations = df[df['review_recommend']]['review_item_id'].value_counts().head(3)
-    result = [{"Puesto 1": developer_recommendations.index[0]},
-              {"Puesto 2": developer_recommendations.index[1]},
-              {"Puesto 3": developer_recommendations.index[2]}]
-    return result
-
-# Endpoint 5: devuelve un análisis de sentimiento de las reseñas para un desarrollador especificado
-@app.get("/developer_reviews_analysis/{desarrollador}")
-def developer_reviews_analysis(desarrollador: str):
-
-    # Obtener los IDs de los juegos desarrollados por la empresa especificada
-    game_ids = steam_games[steam_games['developer'] == desarrollador]['id']
-
-    # Filtrar las reseñas que corresponden a esos IDs de juegos
-    df = user_reviews[user_reviews['review_item_id'].isin(game_ids)]
-    
-    if df.empty:
-        return {"error": "Desarrollador no encontrado"}
-    
-    # Contar las reseñas positivas y negativas
-    sentiment_analysis = df['sentiment_analysis'].value_counts()
-    result = {desarrollador: {
-        "Negative": sentiment_analysis.get(0, 0),
-        "Positive": sentiment_analysis.get(2, 0)
-    }}
-    return result
-     
 # Ejecutar la aplicación con Uvicorn
 if __name__ == "__main__":
     import uvicorn
