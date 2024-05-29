@@ -1,5 +1,5 @@
 # Importar librerias
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 import pandas as pd
 import os
 
@@ -156,5 +156,4 @@ def developer_reviews_analysis(desarrollador: str):
 # Ejecutar la aplicación con Uvicorn
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.environ.get("PORT", 8000))  # Usa el puerto proporcionado por Render, o 8000 si no está definido
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
