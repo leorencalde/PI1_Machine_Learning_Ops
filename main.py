@@ -1,20 +1,26 @@
 # Importar librerias
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 import pandas as pd
 import os
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 # Crear la aplicación FastAPI
 app = FastAPI()
 
 # Especificar las rutas absolutas a los archivos Parquet usando raw strings para evitar problemas con las barras invertidas
-steam_games_path = 'Dataset/steam_games_transf.parquet'
+steam_games_path = 'Dataset/steam_games_transf.parque'
+steam_games_recommend_path = 'Dataset/steam_games_recommend.parquet'
 
 # Verificar que los archivos existen
 if not os.path.exists(steam_games_path):
     raise FileNotFoundError(f"Archivo no encontrado: {steam_games_path}")
+if not os.path.exists(steam_games_recommend_path):
+    raise FileNotFoundError(f"Archivo no encontrado: {steam_games_recommend_path}")
 
 # Cargar los datos desde los archivos Parquet
 steam_games = pd.read_parquet(steam_games_path)
+steam_games_recommend = pd.read_parquet(steam_games_recommend_path)
 
 # Ruta raíz que devuelve un mensaje de bienvenida
 @app.get("/")
@@ -51,7 +57,59 @@ def developer(desarrollador: str):
     result['contenido_free'] = result['contenido_free'].astype(str) + '%'
     
     return result.to_dict(orient='records')
+
+# Sistema de recomendacion item-item: Se recomiendan 5 juegos similares a un juego dado por su ID utilizando la similitud del coseno
+@app.get("/recomendacion_juego/{producto_id}")
+def recomendacion_juego(producto_id: int, sample_size=1000):
+
+    try:
+        # Convertir sample_size a entero
+        sample_size = int(sample_size)
+
+         # Filtrar el juego por el ID proporcionado
+        juego = steam_games_recommend[steam_games_recommend['id'] == producto_id]
+        if juego.empty:
+            raise HTTPException(status_code=404, detail="Juego no encontrado")
     
+        # Crear una muestra más pequeña del conjunto de datos para evitar problemas de memoria
+        steam_games_sample = steam_games_recommend.sample(min(sample_size, len(steam_games_recommend)), random_state=1)
+
+        # Agregar el juego dado a la muestra para asegurar que esté presente
+        steam_games_sample = pd.concat([steam_games_sample, juego], ignore_index=True)
+
+        # Vectorizar los géneros
+        vectorizer = CountVectorizer()
+        genre_matrix = vectorizer.fit_transform(steam_games_sample['genres'])
+
+        # Calcular la similitud del coseno
+        cosine_sim = cosine_similarity(genre_matrix, genre_matrix)
+
+        # Obtener el índice del juego dado
+        idx = steam_games_sample.index[steam_games_sample['id'] == producto_id].tolist()
+        if not idx:
+            raise HTTPException(status_code=404, detail="Juego no encontrado en la matriz de similitud")
+    
+        idx = idx[0]
+
+        # Obtener las puntuaciones de similitud de coseno para el juego dado con todos los demás juegos
+        sim_scores = list(enumerate(cosine_sim[idx]))
+
+        # Ordenar los juegos en función de las puntuaciones de similitud
+        sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
+
+        # Seleccionar los 5 juegos más similares (excluyendo el propio juego)
+        sim_scores = sim_scores[1:6]
+
+        # Obtener los índices de los juegos más similares
+        juego_indices = [i[0] for i in sim_scores]
+
+        # Devolver los juegos más similares
+        juegos_recomendados = steam_games_sample.iloc[juego_indices]
+        return juegos_recomendados[['id', 'app_name', 'genres', 'developer', 'price']].to_dict(orient='records')
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # Ejecutar la aplicación con Uvicorn
 if __name__ == "__main__":
     import uvicorn
