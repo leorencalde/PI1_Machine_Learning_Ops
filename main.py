@@ -161,7 +161,7 @@ def developer_reviews_analysis(desarrollador: str):
 
 # Sistema de recomendacion item-item: Se recomiendan 5 juegos similares a un juego dado por su ID utilizando la similitud del coseno
 @app.get("/recomendacion_juego/{producto_id}")
-def recomendacion_juego(producto_id: int, sample_size=10000):
+def recomendacion_juego(producto_id: int, sample_size=1000):
 
     try:
         # Convertir sample_size a entero
