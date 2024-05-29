@@ -9,7 +9,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 app = FastAPI()
 
 # Especificar las rutas absolutas a los archivos Parquet usando raw strings para evitar problemas con las barras invertidas
-steam_games_path = 'Dataset/steam_games_transf.parque'
+steam_games_path = 'Dataset/steam_games_transf.parquet'
 steam_games_recommend_path = 'Dataset/steam_games_recommend.parquet'
 
 # Verificar que los archivos existen
